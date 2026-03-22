@@ -4,11 +4,22 @@ from jose import jwt, JWTError
 import os
 from dotenv import load_dotenv
 from app.services.vector_service import save_to_vector_store
-from app.services.chat_service import ask_question
+from app.services.chat_service import ask_question, llm
+from app.services.polish_service import generate_polished_message
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 load_dotenv()
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8080"], # Your Vite/React URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
@@ -81,3 +92,14 @@ async def chat_with_docs(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+class PolishRequest(BaseModel):
+    message: str
+
+@app.post("/polish")
+async def polish(request: PolishRequest):
+    if not request.message:
+        return {"error": "Message is empty"}
+    
+    polished_text = generate_polished_message(llm, request.message)
+    return {"polished_content": polished_text}

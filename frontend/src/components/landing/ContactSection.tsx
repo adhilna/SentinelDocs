@@ -4,6 +4,8 @@ import { Sparkles, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { aiService } from "../../api/aiService"
+import { toast } from "sonner";
 
 const POLISH_ENDPOINT = "http://localhost:8001/polish";
 
@@ -12,18 +14,23 @@ export function ContactSection() {
   const [message, setMessage] = useState("");
   const [isPolishing, setIsPolishing] = useState(false);
 
+  // Cleaned up handlePolish using your central API layer
   const handlePolish = async () => {
+    if (!message.trim()) return;
+
     setIsPolishing(true);
     try {
-      const res = await fetch(POLISH_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, message }),
-      });
-      const data = await res.json();
-      if (data.polished) setMessage(data.polished);
+      // aiService.polishMessage only needs the string, not the whole object
+      const data = await aiService.polishMessage(message);
+
+      // Update UI with the 'polished_content' key from your FastAPI response
+      if (data.polished_content) {
+        setMessage(data.polished_content);
+        toast.success("Message polished!");
+      }
     } catch (err) {
-      console.error("Polish endpoint unreachable:", err);
+      console.error("Polish failed:", err);
+      toast.error("Could not reach AI service. Is FastAPI running on 8001?");
     } finally {
       setIsPolishing(false);
     }
@@ -33,6 +40,7 @@ export function ContactSection() {
     e.preventDefault();
     // Connect to your submit endpoint
     console.log("Submit:", { email, message });
+    toast.info("Message sent (simulated)");
   };
 
   return (
@@ -51,7 +59,7 @@ export function ContactSection() {
           Questions about SentinelDocs? Drop us a line.
         </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 mx-auto max-w-lg">
           <Input
             type="email"
             placeholder="you@company.com"
@@ -82,7 +90,7 @@ export function ContactSection() {
               ) : (
                 <Sparkles className="h-3.5 w-3.5" />
               )}
-              Magic Polish
+              {isPolishing ? "Polishing..." : "Magic Polish"}
             </Button>
 
             <Button
