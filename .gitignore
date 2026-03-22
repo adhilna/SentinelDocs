@@ -19,6 +19,6 @@ db.sqlite3
 # Logs
 *.log
 
-fastapi_ai/chroma_db/
+backend/fastapi_ai/chroma_db/
 
 .vscode/
