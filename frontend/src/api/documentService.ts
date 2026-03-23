@@ -1,0 +1,22 @@
+// src/api/documentService.ts
+import { authApi } from "./axiosConfig";
+
+export const documentService = {
+    upload: async (file: File) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        // Django expects 'file' based on our previous model discussion
+
+        const response = await authApi.post("/api/documents/upload/", formData, {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        });
+        return response.data;
+    },
+
+    getDocuments: async () => {
+        const response = await authApi.get("/api/documents/");
+        return response.data;
+    }
+};

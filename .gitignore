@@ -22,3 +22,5 @@ db.sqlite3
 backend/fastapi_ai/chroma_db/
 
 .vscode/
+
+media/

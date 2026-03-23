@@ -9,13 +9,15 @@ import Overview from "@/pages/Overview";
 import Settings from "@/pages/Settings";
 import ApiKeys from "@/pages/ApiKeys";
 import Analytics from "@/pages/Analytics";
+import { documentService } from "@/api/documentService";
+import { toast } from "sonner";
 
 interface UploadedDoc {
   id: string;
   name: string;
   date: string;
-  status: "pending";
-  score: null;
+  status: "pending" | "success" | "error";
+  score: number | null;
 }
 
 const breadcrumbMap: Record<string, { label: string }[]> = {
@@ -29,15 +31,41 @@ const breadcrumbMap: Record<string, { label: string }[]> = {
 export default function Dashboard() {
   const [uploadedDocs, setUploadedDocs] = useState<UploadedDoc[]>([]);
 
-  const handleFilesDropped = (files: File[]) => {
-    const newDocs: UploadedDoc[] = files.map((f) => ({
-      id: crypto.randomUUID(),
+  const handleFilesDropped = async (files: File[]) => {
+    // 1. Create temporary UI entries (Optimistic Update)
+    const tempDocs: UploadedDoc[] = files.map((f) => ({
+      id: crypto.randomUUID(), // Temp ID
       name: f.name,
-      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      date: "Uploading...",
       status: "pending" as const,
       score: null,
     }));
-    setUploadedDocs((prev) => [...newDocs, ...prev]);
+
+    setUploadedDocs((prev) => [...tempDocs, ...prev]);
+
+    // 2. Loop through and upload each file to Django
+    for (const file of files) {
+      try {
+        const result = await documentService.upload(file);
+
+        // 3. Replace the temp entry with real data from backend
+        setUploadedDocs((prev) =>
+          prev.map(doc =>
+            doc.name === file.name ? {
+              ...doc,
+              id: result.document.id,
+              date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+              status: "success" // Or whatever your status logic is
+            } : doc
+          )
+        );
+        toast.success(`${file.name} uploaded!`);
+      } catch (err) {
+        toast.error(`Failed to upload ${file.name}`);
+        // Remove failed upload from UI
+        setUploadedDocs((prev) => prev.filter(d => d.name !== file.name));
+      }
+    }
   };
 
   const pathname = typeof window !== "undefined" ? window.location.pathname : "/dashboard";

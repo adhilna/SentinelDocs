@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import AuditWorkspace from "./pages/AuditWorkspace";
 // Analytics is now rendered inside Dashboard
 import NotFound from "./pages/NotFound";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -29,8 +30,10 @@ const App = () => {
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/dashboard/*" element={<Dashboard />} />
-            <Route path="/audit/:id" element={<AuditWorkspace />} />
+
+            {/* Protected Routes - Only accessible if logged in */}
+            <Route path="/dashboard/*" element={<ProtectedRoute> <Dashboard /> </ProtectedRoute>} />
+            <Route path="/audit/:id" element={<ProtectedRoute> <AuditWorkspace /> </ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

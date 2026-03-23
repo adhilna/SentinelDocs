@@ -28,9 +28,8 @@ export function FileDropzone({ onFilesDropped }: FileDropzoneProps) {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-      className={`relative rounded-2xl border-2 border-dashed p-12 text-center cursor-pointer transition-colors duration-200 ${
-        isDragging ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"
-      }`}
+      className={`relative rounded-2xl border-2 border-dashed p-12 text-center cursor-pointer transition-colors duration-200 ${isDragging ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"
+        }`}
       onClick={() => inputRef.current?.click()}
       onDragEnter={(e) => handleDrag(e, true)}
       onDragOver={(e) => handleDrag(e, true)}
