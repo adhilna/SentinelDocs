@@ -15,19 +15,28 @@ embeddings = GoogleGenerativeAIEmbeddings(
 # 2. Setup the Database path
 CHROMA_PATH = "chroma_db"
 
-def save_to_vector_store(chunks: list, filename: str):
-    """Turns text chunks into vectors and saves them to disk."""
-    
-    # Wrap chunks in LangChain "Document" objects with metadata
-    docs = [
-        Document(page_content=chunk, metadata={"source": filename}) 
-        for chunk in chunks
-    ]
-    
-    # Initialize and save to ChromaDB
-    db = Chroma.from_documents(
-        docs, 
-        embeddings, 
-        persist_directory=CHROMA_PATH
-    )
-    return True
+def save_to_vector_store(chunks: list, filename: str, document_id: str):
+    """
+    Receives a list of Document objects (already stamped with ID) 
+    and saves them to ChromaDB.
+    """
+    try:
+        if not chunks:
+            print("DEBUG: No chunks provided to save_to_vector_store")
+            return False
+
+        # 🎯 CRITICAL: Just pass 'chunks' directly. 
+        # Do NOT wrap them in 'docs = [Document(...)]' again.
+        db = Chroma.from_documents(
+            documents=chunks, 
+            embedding=embeddings, 
+            persist_directory=CHROMA_PATH
+        )
+        
+        # This helps your 2015 Mac finish the file write
+        print(f"DEBUG: Successfully saved {len(chunks)} chunks for ID: {document_id}")
+        return True
+        
+    except Exception as e:
+        print(f"VECTOR STORE ERROR: {str(e)}")
+        return False

@@ -26,14 +26,85 @@ authApi.interceptors.request.use(
     }
 );
 
-// 🔄 Optional: Handle 401 (Expired Token) automatically
 authApi.interceptors.response.use(
     (response) => response,
+    async (error) => {
+        const originalRequest = error.config;
+
+        // If the error is 401 (Unauthorized) and we haven't tried refreshing yet
+        if (error.response?.status === 401 && !originalRequest._retry) {
+            originalRequest._retry = true; // Mark this request so we don't loop forever
+
+            try {
+                const refreshToken = localStorage.getItem('refreshToken');
+
+                // 1. Call Django to get a fresh Access Token
+                const res = await axios.post('http://localhost:8000/api/token/refresh/', {
+                    refresh: refreshToken,
+                });
+
+                if (res.status === 200) {
+                    const newAccessToken = res.data.access;
+
+                    // 2. Save the new token
+                    localStorage.setItem('accessToken', newAccessToken);
+
+                    // 3. Update the failed request with the new token and RETRY it
+                    originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+                    return authApi(originalRequest);
+                }
+            } catch (refreshError) {
+                // If the Refresh Token is ALSO expired, then the user MUST log in again
+                console.error("Refresh token expired. Logging out...");
+                localStorage.clear();
+                window.location.href = '/login';
+                return Promise.reject(refreshError);
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
+aiApi.interceptors.request.use(
+    (config) => {
+        // Use the exact same key name you used for Django
+        const token = localStorage.getItem('accessToken');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+            console.log("Header attached to AI request:", config.headers.Authorization);
+        } else {
+            console.warn("No token found in localStorage for AI request!");
+        }
+        return config;
+    },
     (error) => {
-        if (error.response?.status === 401) {
-            console.error("Session expired. Redirecting to login...");
-            // localStorage.removeItem('accessToken');
-            // window.location.href = '/login';
+        return Promise.reject(error);
+    }
+);
+
+// Add this so AI requests also refresh the token if they fail
+aiApi.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        const originalRequest = error.config;
+        if (error.response?.status === 401 && !originalRequest._retry) {
+            originalRequest._retry = true;
+            try {
+                // Use the SAME refresh logic as authApi
+                const refreshToken = localStorage.getItem('refreshToken');
+                const res = await axios.post('http://localhost:8000/api/token/refresh/', {
+                    refresh: refreshToken,
+                });
+
+                const newAccessToken = res.data.access;
+                localStorage.setItem('accessToken', newAccessToken);
+
+                originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+                return aiApi(originalRequest); // Retry AI request
+            } catch (err) {
+                localStorage.clear();
+                window.location.href = '/login';
+            }
         }
         return Promise.reject(error);
     }

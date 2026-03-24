@@ -18,5 +18,10 @@ export const documentService = {
     getDocuments: async () => {
         const response = await authApi.get("/api/documents/");
         return response.data;
-    }
+    },
+
+    deleteDocument: async (docId: string | number) => {
+        const response = await authApi.delete(`/api/documents/${docId}/`);
+        return response.data;
+    },
 };

@@ -7,8 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { aiService } from "../../api/aiService"
 import { toast } from "sonner";
 
-const POLISH_ENDPOINT = "http://localhost:8001/polish";
-
 export function ContactSection() {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
