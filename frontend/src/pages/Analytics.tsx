@@ -17,17 +17,6 @@ interface AnalyticsProps {
   documents: Doc[];
 }
 
-const faithfulnessData = [
-  { date: "Mar 1", score: 88.2 },
-  { date: "Mar 4", score: 90.1 },
-  { date: "Mar 7", score: 87.5 },
-  { date: "Mar 10", score: 92.3 },
-  { date: "Mar 13", score: 91.8 },
-  { date: "Mar 16", score: 94.7 },
-  { date: "Mar 19", score: 93.2 },
-  { date: "Mar 21", score: 95.1 },
-];
-
 const entrance = {
   hidden: { opacity: 0, y: 16, filter: "blur(4px)" },
   show: (i: number) => ({

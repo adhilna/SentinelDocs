@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import { Key, Plus, Copy, Trash2, Check } from "lucide-react";
+import { authApi } from "@/api/axiosConfig";
 
 interface ApiKey {
   id: string;
@@ -17,9 +18,6 @@ interface ApiKey {
   status: "active" | "revoked";
 }
 
-const generateKey = () =>
-  `sk-sentinel-${Array.from({ length: 32 }, () => "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]).join("")}`;
-
 const entrance = {
   hidden: { opacity: 0, y: 16, filter: "blur(4px)" },
   show: (i: number) => ({
@@ -29,29 +27,45 @@ const entrance = {
 };
 
 export default function ApiKeys() {
-  const [keys, setKeys] = useState<ApiKey[]>([
-    { id: "1", name: "Production Key", key: "sk-sentinel-a8f3k29d...x4m1", created: "2025-12-01", lastUsed: "2 hours ago", status: "active" },
-    { id: "2", name: "Staging Key", key: "sk-sentinel-p7w2n81b...q9r3", created: "2025-11-15", lastUsed: "3 days ago", status: "active" },
-  ]);
+  const [keys, setKeys] = useState<ApiKey[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [newKeyName, setNewKeyName] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
 
-  const handleGenerate = () => {
-    if (!newKeyName.trim()) return;
-    const fullKey = generateKey();
-    const newKey: ApiKey = {
-      id: crypto.randomUUID(),
-      name: newKeyName.trim(),
-      key: fullKey,
-      created: new Date().toISOString().split("T")[0],
-      lastUsed: "Never",
-      status: "active",
+  useEffect(() => {
+    const fetchKeys = async () => {
+      try {
+        const response = await authApi.get('/api/documents/keys/');
+        setKeys(response.data);
+      } catch (err) {
+        toast({ title: "Error", description: "Failed to load API keys.", variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
     };
-    setKeys((prev) => [newKey, ...prev]);
-    setNewKeyName("");
-    setRevealedKey(newKey.id);
-    toast({ title: "API key generated", description: "Copy it now — you won't see the full key again." });
+    fetchKeys();
+  }, []);
+
+  const handleGenerate = async () => {
+    try {
+      const response = await authApi.post('/api/documents/keys/', { name: newKeyName });
+
+      // Log this to your console to PROVE the ID is coming back
+      console.log("New Key Response:", response.data);
+
+      const newKeyFromServer: ApiKey = {
+        id: response.data.id, // This MUST match the 'id' from your Django Response
+        name: response.data.name,
+        key: response.data.key,
+        created: new Date().toISOString().split("T")[0],
+        lastUsed: response.data.lastUsed,
+        status: "active",
+      };
+
+      setKeys((prev) => [newKeyFromServer, ...prev]);
+      // ...
+    } catch (err) { /* ... */ }
   };
 
   const handleCopy = (key: ApiKey) => {
@@ -61,9 +75,19 @@ export default function ApiKeys() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleRevoke = (id: string) => {
-    setKeys((prev) => prev.map((k) => (k.id === id ? { ...k, status: "revoked" as const } : k)));
-    toast({ title: "API key revoked", description: "This key can no longer authorize requests." });
+  const handleRevoke = async (id: string) => {
+    try {
+      await authApi.delete(`/api/documents/keys/${id}/revoke/`);
+
+      // Update UI state to show it's revoked
+      setKeys((prev) =>
+        prev.map((k) => (k.id === id ? { ...k, status: "revoked" as const } : k))
+      );
+
+      toast({ title: "Key Revoked", description: "This key is no longer valid." });
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to revoke key.", variant: "destructive" });
+    }
   };
 
   return (
@@ -142,7 +166,21 @@ export default function ApiKeys() {
                         </code>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">{apiKey.created}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{apiKey.lastUsed}</TableCell>
+                      <TableCell>
+                        {apiKey.lastUsed && apiKey.lastUsed !== "Never" ? (
+                          // This converts "2026-03-26T05:12..." into "3/26/2026, 10:45:19 AM"
+                          new Date(apiKey.lastUsed).toLocaleString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                          })
+                        ) : (
+                          <span className="text-gray-400 italic">Never</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={apiKey.status === "active" ? "default" : "secondary"}
                           className={apiKey.status === "active" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : ""}

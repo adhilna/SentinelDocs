@@ -14,8 +14,9 @@ load_dotenv()
 
 # 1. Setup the LLM
 llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash", 
-    google_api_key=os.getenv("GEMINI_API_KEY")
+    model="gemini-3-flash-preview",
+    google_api_key=os.getenv("GEMINI_API_KEY"),
+    temperature=0.2
 )
 
 # Updated function signature to accept doc_id
@@ -26,8 +27,8 @@ def ask_question(query: str, doc_id: str):
     # 🎯 NEW: Use similarity_search_with_score to get the 'Distance'
     # This returns a list of (Document, Score) tuples
     docs_with_scores = db.similarity_search_with_score(
-        query, 
-        k=4, 
+        query,
+        k=4,
         filter={'document_id': str(doc_id)}
     )
 
