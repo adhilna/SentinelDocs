@@ -2,11 +2,11 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
-from .models import Document
+from .models import Document, ApiKey
 import requests
-from django.conf import settings
 import os
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -89,11 +89,11 @@ def delete_document(request, doc_id):
         # 1. Find the doc in Django
         doc = Document.objects.get(id=doc_id, user=request.user)
         file_path = doc.file.path
-        
+
         # 2. 🔥 Tell FastAPI to delete the Vectors
         fastapi_del_url = f"http://localhost:8001/api/vector-delete/{doc_id}"
         auth_header = request.headers.get('Authorization')
-        
+
         try:
             # We use a small timeout because deleting vectors is fast
             requests.delete(fastapi_del_url, headers={'Authorization': auth_header}, timeout=5)
@@ -108,10 +108,10 @@ def delete_document(request, doc_id):
             os.remove(file_path)
 
         return Response({"status": "success", "message": "Document and Vectors wiped."}, status=200)
-    
+
     except Document.DoesNotExist:
         return Response({"error": "File not found"}, status=404)
-    
+
 @api_view(['PATCH'])
 @permission_classes([IsAuthenticated])
 def update_document_score(request, doc_id):
@@ -123,17 +123,80 @@ def update_document_score(request, doc_id):
         # Initialize the JSON field if it's empty
         if not doc.audit_report:
             doc.audit_report = {}
-        
+
         # Save the numerical score (e.g., 85) into the JSON
         doc.audit_report['score'] = new_score
         doc.is_audited = True
         doc.save()
-        
+
         return Response({"status": "success", "score": new_score})
-    
+
     return Response({"error": "No score provided"}, status=400)
 
 @api_view(['GET'])
 @permission_classes([AllowAny]) # Allows the dashboard to ping without a token check for speed
 def health_check(request):
     return Response({"status": "healthy"}, status=200)
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def api_key_list_create(request):
+    if request.method == 'GET':
+        keys = ApiKey.objects.filter(user=request.user) # List both active/revoked
+        return Response([{
+            "id": k.id, # 👈 This is the ID React needs for the Delete URL
+            "name": k.name,
+            "key": f"{k.key_prefix}****************",
+            "created": k.created_at.strftime("%Y-%m-%d"),
+            "lastUsed": k.last_used.isoformat() if k.last_used else None,
+            "status": "active" if k.is_active else "revoked"
+        } for k in keys])
+
+    if request.method == 'POST':
+        name = request.data.get('name', 'Default Key')
+        raw_key, prefix, key_hash = ApiKey.generate_key()
+
+        # 1. Create the object and capture the instance
+        new_key = ApiKey.objects.create(
+            user=request.user,
+            name=name,
+            key_prefix=prefix,
+            key_hash=key_hash
+        )
+
+        # 2. RETURN THE ID HERE!
+        return Response({
+            "id": new_key.id, # 👈 CRITICAL: React needs this to delete it later
+            "name": name,
+            "key": raw_key,
+            "message": "Copy this key now. You won't see it again!"
+        })
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def revoke_api_key(request, pk): 
+    try:
+        key = ApiKey.objects.get(id=pk, user=request.user)
+        key.is_active = False
+        key.save()
+        return Response({"status": "revoked"})
+    except ApiKey.DoesNotExist:
+        return Response({"error": "Key not found"}, status=404)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_key_internal(request):
+    key_hash = request.data.get('key_hash')
+    key = ApiKey.objects.filter(key_hash=key_hash, is_active=True).first()
+
+    if key:
+        # Update last used timestamp
+        key.last_used = timezone.now()
+        key.save()
+        return Response({
+            "valid": True,
+            "user_id": key.user.id,
+            "username": key.user.username
+        })
+
+    return Response({"valid": False}, status=401)
