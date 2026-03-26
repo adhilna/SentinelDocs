@@ -1,11 +1,12 @@
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.decorators import api_view, permission_classes, parser_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from .models import Document
 import requests
 from django.conf import settings
 import os
+from django.shortcuts import get_object_or_404
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -110,3 +111,29 @@ def delete_document(request, doc_id):
     
     except Document.DoesNotExist:
         return Response({"error": "File not found"}, status=404)
+    
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_document_score(request, doc_id):
+    # Find the document for the specific user
+    doc = get_object_or_404(Document, id=doc_id, user=request.user)
+    new_score = request.data.get('score')
+
+    if new_score is not None:
+        # Initialize the JSON field if it's empty
+        if not doc.audit_report:
+            doc.audit_report = {}
+        
+        # Save the numerical score (e.g., 85) into the JSON
+        doc.audit_report['score'] = new_score
+        doc.is_audited = True
+        doc.save()
+        
+        return Response({"status": "success", "score": new_score})
+    
+    return Response({"error": "No score provided"}, status=400)
+
+@api_view(['GET'])
+@permission_classes([AllowAny]) # Allows the dashboard to ping without a token check for speed
+def health_check(request):
+    return Response({"status": "healthy"}, status=200)

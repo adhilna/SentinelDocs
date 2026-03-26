@@ -32,7 +32,11 @@ interface UploadedDoc {
   url?: string; // Important for the PDF viewer!
 }
 
-export default function AuditWorkspace() {
+interface AuditWorkspaceProps {
+  onAuditComplete: (docId: string, score: number) => void;
+}
+
+export default function AuditWorkspace({ onAuditComplete }: AuditWorkspaceProps) {
   const { id } = useParams();
   const [selectedDoc, setSelectedDoc] = useState<UploadedDoc | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -85,6 +89,10 @@ export default function AuditWorkspace() {
       // Pass the selectedDoc.id so FastAPI knows which vector collection to query
       const response = await aiService.askQuestion(currentInput, selectedDoc.id);
 
+      if (onAuditComplete) {
+        onAuditComplete(selectedDoc.id, response.confidence_score);
+      }
+
       const aiMsg: Message = {
         role: "ai",
         content: response.answer,
@@ -106,15 +114,15 @@ export default function AuditWorkspace() {
   };
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full">
-        <DashboardSidebar />
-        <div className="flex-1 flex flex-col">
-          <TopBar breadcrumbs={[
-            { label: "Dashboard", href: "/dashboard" },
-            { label: "Files", href: "/dashboard/files" },
-            { label: selectedDoc?.name || "Loading..." }
-          ]} />
+    // <SidebarProvider>
+    //   <div className="min-h-screen flex w-full">
+    //     <DashboardSidebar />
+    //     <div className="flex-1 flex flex-col">
+    //       <TopBar breadcrumbs={[
+    //         { label: "Dashboard", href: "/dashboard" },
+    //         { label: "Files", href: "/dashboard/files" },
+    //         { label: selectedDoc?.name || "Loading..." }
+    //       ]} />
           <div className="flex-1 flex min-h-0">
             {/* Left Panel: PDF Viewer */}
             <div className="hidden lg:flex w-1/2 border-r border-border flex-col bg-white">
@@ -211,8 +219,8 @@ export default function AuditWorkspace() {
               </div>
             </div>
           </div>
-        </div>
-      </div>
-    </SidebarProvider>
+    //     </div>
+    //   </div>
+    // </SidebarProvider>
   );
 }

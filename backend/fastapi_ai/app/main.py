@@ -131,6 +131,10 @@ async def delete_vector_data(doc_id: str, user=Depends(verify_token)):
         print(f"CLEANUP ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/health")
+async def health_check():
+    return {"status": "operational"}
+
 class PolishRequest(BaseModel):
     message: str
 

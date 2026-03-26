@@ -86,7 +86,7 @@ export function DocumentTable({ documents, isLoading, onDelete }: DocumentTableP
                   </TableCell>
                   <TableCell>
                     <Button asChild variant="ghost" size="icon" className="h-8 w-8 active:scale-[0.95] transition-transform">
-                      <Link to={`/audit/${doc.id}`}>
+                      <Link to={`/dashboard/audit/${doc.id}`}>
                         <ExternalLink className="h-4 w-4" />
                       </Link>
                     </Button>

@@ -1,4 +1,3 @@
-// src/api/documentService.ts
 import { authApi } from "./axiosConfig";
 
 export const documentService = {
@@ -24,4 +23,10 @@ export const documentService = {
         const response = await authApi.delete(`/api/documents/${docId}/`);
         return response.data;
     },
+
+    updateScore: async (docId: string, score: number) => {
+        // Hits the new Django PATCH endpoint
+        const response = await authApi.patch(`/api/documents/${docId}/score/`, { score });
+        return response.data;
+    }
 };
