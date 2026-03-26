@@ -11,6 +11,7 @@ from pydantic import BaseModel
 import time
 from langchain_chroma import Chroma
 from app.services.vector_service import embeddings, CHROMA_PATH
+from .auth_utils import get_current_user_universal
 
 load_dotenv()
 
@@ -27,28 +28,15 @@ app.add_middleware(
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 
-def verify_token(authorization: str = Header(...)):
-    try:
-        scheme, token = authorization.split()
-
-        if scheme.lower() != "bearer":
-            raise HTTPException(status_code=401, detail="Invalid auth scheme")
-
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
-
-    except (JWTError, ValueError):
-        raise HTTPException(status_code=401, detail="Invalid token")
-
 @app.get("/secure")
-def secure_route(user=Depends(verify_token)):
+def secure_route(user=Depends(get_current_user_universal)):
     return {"user": user}
 
 @app.post("/upload")
 async def upload_document(
     file: UploadFile = File(...),
     doc_id: str = Form(...),
-    user=Depends(verify_token)  # 🛡️ Protected by your Django JWT
+    user=Depends(get_current_user_universal)  # 🛡️ Protected by your Django JWT
 ):
     # 1. Check file type
     if file.content_type != "application/pdf":
@@ -85,7 +73,7 @@ class QuestionRequest(BaseModel):
 @app.post("/ask")
 async def chat_with_docs(
     request: QuestionRequest,
-    user=Depends(verify_token)
+    user=Depends(get_current_user_universal)
 ):
     start_time = time.time()
 
@@ -116,7 +104,7 @@ async def chat_with_docs(
 
 # FastAPI main.py
 @app.delete("/api/vector-delete/{doc_id}")
-async def delete_vector_data(doc_id: str, user=Depends(verify_token)):
+async def delete_vector_data(doc_id: str, user=Depends(get_current_user_universal)):
     try:
         # 1. Connect to your existing ChromaDB
         db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embeddings)
@@ -132,8 +120,25 @@ async def delete_vector_data(doc_id: str, user=Depends(verify_token)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
-async def health_check():
-    return {"status": "operational"}
+async def health_check(user=Depends(get_current_user_universal)): # 👈 Add this!
+    username = user.get("username", user.get("user_id", "Unknown User"))
+    return {"status": "operational", "user": username}
+
+async def verify_api_key(x_api_key: str = Header(None)):
+    if not x_api_key:
+        raise HTTPException(status_code=401, detail="API Key missing")
+
+    # 1. Hash the incoming key to compare with DB
+    incoming_hash = hashlib.sha256(x_api_key.encode()).hexdigest()
+
+    # 2. Check Django Database (via ORM or Internal API call)
+    # For now, let's assume a function check_db(incoming_hash)
+    is_valid = await check_key_in_django(incoming_hash) 
+
+    if not is_valid:
+        raise HTTPException(status_code=401, detail="Invalid or Revoked API Key")
+
+    return x_api_key
 
 class PolishRequest(BaseModel):
     message: str
