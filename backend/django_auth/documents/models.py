@@ -13,6 +13,13 @@ def user_directory_path(instance, filename):
     return f'user_{instance.user.id}/documents/{filename}'
 
 class Document(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('indexing', 'Indexing'),
+        ('auditing', 'Auditing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -20,6 +27,7 @@ class Document(models.Model):
     )
     file = models.FileField(upload_to=user_directory_path)
     filename = models.CharField(max_length=255)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     file_size = models.IntegerField()  # in bytes
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
@@ -35,6 +43,7 @@ class ApiKey(models.Model):
     name = models.CharField(max_length=100)
     key_prefix = models.CharField(max_length=16, editable=False) # sk-sentinel-xxxx
     key_hash = models.CharField(max_length=255, editable=False, unique=True)
+    total_usage = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     last_used = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)

@@ -7,6 +7,8 @@ import requests
 import os
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from datetime import timedelta
+from django.db.models import Sum
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -22,7 +24,8 @@ def upload_document(request):
         user=request.user,
         file=uploaded_file,
         filename=uploaded_file.name,
-        file_size=uploaded_file.size
+        file_size=uploaded_file.size,
+        status='indexing'
     )
 
     # Forward to FastAPI for AI Processing
@@ -41,22 +44,26 @@ def upload_document(request):
         if fastapi_res.status_code == 200:
             ai_data = fastapi_res.json()
             # 3. Update Django with AI metadata (chunks, preview, etc.)
+            doc.status = 'completed'
             doc.is_audited = True
             doc.audit_report = ai_data
             doc.save()
         else:
             # We still saved the file, but we flag that AI failed
+            doc.status = 'failed'
             doc.is_audited = False
             doc.save()
 
     except Exception as e:
         print(f"FastAPI Connection Error: {e}")
-        # Log error but don't crash the Django response
+        doc.status = 'failed'
+        doc.save()
 
     return Response({
         "status": "success",
         "document": {
             "id": doc.id,
+            "status": doc.status,
             "filename": doc.filename,
             "url": request.build_absolute_uri(doc.file.url),
             "ai_processed": doc.is_audited
@@ -134,6 +141,17 @@ def update_document_score(request, doc_id):
     return Response({"error": "No score provided"}, status=400)
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_document_status(request, doc_id):
+    doc = get_object_or_404(Document, id=doc_id, user=request.user)
+    return Response({
+        "id": doc.id,
+        "status": doc.status,
+        "is_audited": doc.is_audited,
+        "score": doc.audit_report.get('score') if doc.audit_report else None
+    })
+
+@api_view(['GET'])
 @permission_classes([AllowAny]) # Allows the dashboard to ping without a token check for speed
 def health_check(request):
     return Response({"status": "healthy"}, status=200)
@@ -192,6 +210,7 @@ def verify_key_internal(request):
     if key:
         # Update last used timestamp
         key.last_used = timezone.now()
+        key.total_usage += 1
         key.save()
         return Response({
             "valid": True,
@@ -200,3 +219,35 @@ def verify_key_internal(request):
         })
 
     return Response({"valid": False}, status=401)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def workspace_summary(request):
+    # 1. Total Documents for this user
+    # doc_count = Document.objects.filter(user=request.user).count()
+    total_docs = Document.objects.filter(user=request.user).count()
+    user_docs = Document.objects.filter(user=request.user)
+    
+    # 2. Active API Keys
+    active_keys = ApiKey.objects.filter(user=request.user, is_active=True).count()
+    
+    # 3. Calculate API Usage (optional: based on a Logs model if you have one)
+    usage_stats = ApiKey.objects.filter(user=request.user).aggregate(Sum('total_usage'))
+    total_usage = usage_stats['total_usage__sum'] or 0
+
+    # 4. Audits Logic
+    audits_done = Document.objects.filter(user=request.user, is_audited=True).count()
+    percent = int((audits_done / total_docs) * 100) if total_docs > 0 else 0
+
+    # 5. Dynamic "This Week" Count (using uploaded_at)
+    one_week_ago = timezone.now() - timedelta(days=7)
+    docs_this_week = user_docs.filter(uploaded_at__gte=one_week_ago).count()
+
+    return Response({
+        "total_documents": total_docs,
+        "active_keys": active_keys,
+        "api_usage": f"{total_usage:,}",
+        "audits_completed": audits_done,
+        "key_change_label": f"{percent}% completion rate",
+        "docs_this_week_label": f"+{docs_this_week} this week",
+    })

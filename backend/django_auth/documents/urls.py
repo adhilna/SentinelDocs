@@ -9,5 +9,6 @@ urlpatterns = [
     path('keys/', views.api_key_list_create, name='api_keys'),
     path('keys/<int:pk>/revoke/', views.revoke_api_key, name='revoke_key'),
     path('keys/verify_key_internal/', views.verify_key_internal, name='api_keys'),
+    path('summary/', views.workspace_summary, name='workspace-summary'),
     path('', views.get_documents, name='document-list'),
 ]
