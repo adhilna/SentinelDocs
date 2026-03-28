@@ -1,0 +1,31 @@
+# Git
+
+.git
+.gitignore
+
+# Python locals
+
+__pycache__/
+
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Databases (We will use Postgres in the cloud!)
+
+db.sqlite3
+db.sqlite3-journal
+
+# Environment secrets (GCP will provide these via Cloud Run)
+
+.env
+
+# Mac system files
+
+.DS_Store
