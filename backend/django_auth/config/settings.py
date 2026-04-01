@@ -44,6 +44,17 @@ else:
     CSRF_COOKIE_SECURE = False
     ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
 
+    CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+
+env_csrf = os.getenv("CSRF_TRUSTED_ORIGINS")
+if env_csrf:
+    CSRF_TRUSTED_ORIGINS.extend(env_csrf.split(","))
+
+CSRF_TRUSTED_ORIGINS.append("https://*.cloudshell.dev")
+
 # Application definition
 
 INSTALLED_APPS = [

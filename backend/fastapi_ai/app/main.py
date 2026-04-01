@@ -151,6 +151,6 @@ class PolishRequest(BaseModel):
 async def polish(request: PolishRequest):
     if not request.message:
         return {"error": "Message is empty"}
-    
+
     polished_text = generate_polished_message(llm, request.message)
     return {"polished_content": polished_text}

@@ -31,7 +31,6 @@ interface UploadedDoc {
   score: number | null;
   url?: string; // Important for the PDF viewer!
 }
-
 interface AuditWorkspaceProps {
   onAuditComplete: (docId: string, score: number) => void;
 }
