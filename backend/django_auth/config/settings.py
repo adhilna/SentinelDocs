@@ -114,7 +114,7 @@ if DB_HOST:
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': 'sentinel_db',
-            'USER': 'adhil',
+            'USER': os.getenv("DB_USER", "postgres"),
             'PASSWORD': os.getenv("DB_PASSWORD"),
             'HOST': DB_HOST,
             'PORT': os.getenv("DB_PORT", "5432"),
