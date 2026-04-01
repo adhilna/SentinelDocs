@@ -105,20 +105,34 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
+# Database Configuration
+DB_HOST = os.getenv("DB_HOST")
 
-if os.getenv('K_SERVICE'):  # This variable only exists when running on Cloud Run
-    # PRODUCTION: Google Cloud SQL
+if DB_HOST:
+    # Use TCP Connection (For Docker + Cloud SQL Proxy)
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            'NAME': 'sentinel_db',  # The DB name you created in the Console
-            'USER': 'adhil',          # The DB user you created
-            'PASSWORD': os.getenv("DB_PASSWORD"), # Use an env var for this!
+            'NAME': 'sentinel_db',
+            'USER': 'adhil',
+            'PASSWORD': os.getenv("DB_PASSWORD"),
+            'HOST': DB_HOST,
+            'PORT': os.getenv("DB_PORT", "5432"),
+        }
+    }
+elif os.getenv('K_SERVICE'):
+    # Use Unix Socket (For production Cloud Run)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': 'sentinel_db',
+            'USER': 'adhil',
+            'PASSWORD': os.getenv("DB_PASSWORD"),
             'HOST': f'/cloudsql/{os.getenv("INSTANCE_CONNECTION_NAME")}',
         }
     }
 else:
-    # LOCAL: Your MacBook (SQLite)
+    # Local Development on your MacBook
     DATABASES = {
         'default': dj_database_url.config(
             default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
