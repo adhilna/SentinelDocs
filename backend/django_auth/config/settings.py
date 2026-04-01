@@ -113,7 +113,7 @@ if DB_HOST:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            'NAME': 'sentinel_db',
+            'NAME': 'postgres',
             'USER': os.getenv("DB_USER", "postgres"),
             'PASSWORD': os.getenv("DB_PASSWORD"),
             'HOST': DB_HOST,
@@ -125,7 +125,7 @@ elif os.getenv('K_SERVICE'):
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            'NAME': 'sentinel_db',
+            'NAME': 'postgres',
             'USER': os.getenv("DB_USER", "postgres"),
             'PASSWORD': os.getenv("DB_PASSWORD"),
             'HOST': f'/cloudsql/{os.getenv("INSTANCE_CONNECTION_NAME")}',
