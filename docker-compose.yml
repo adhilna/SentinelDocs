@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # 1. Cloud SQL Proxy
+  db-proxy:
+    image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:latest
+    container_name: sentinel-db-proxy
+    command:
+      - "/cloud-sql-proxy"
+      - "--address"
+      - "0.0.0.0"
+      - "sentineldocs:us-central1:sentinel-db"
+    ports:
+      - "5432:5432"
+
+  # 2. Django Backend
+  backend:
+    build: ./backend/django_auth
+    container_name: sentinel-django
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db-proxy
+
+  # 3. FastAPI AI Engine
+  ai-engine:
+    build: ./backend/fastapi_ai
+    container_name: sentinel-ai
+    ports:
+      - "8001:8001"
+    env_file: .env
+    volumes:
+      # Maps your Mac's chroma_db folder to the container's internal path
+      - ./backend/fastapi_ai/chroma_db:/app/chroma_db
+    depends_on:
+      - backend
+
+  # 4. React Frontend
+  frontend:
+    build: ./frontend
+    container_name: sentinel-react
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
