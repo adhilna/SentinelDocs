@@ -29,6 +29,7 @@ import {
   X
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useLocation } from "react-router-dom";
 
 interface UploadedDoc {
   id: string;
@@ -229,7 +230,7 @@ export default function Dashboard() {
         <DashboardSidebar />
         <div className="flex-1 flex flex-col">
           <TopBar breadcrumbs={crumbs} user={user} />
-          <main className="flex-1 p-6 max-w-5xl">
+          <main className="flex-1 p-6">
             <Routes>
               <Route index element={<Overview />} />
               <Route path="files" element={

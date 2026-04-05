@@ -7,28 +7,43 @@ import { Textarea } from "@/components/ui/textarea";
 import { aiService } from "../../api/aiService"
 import { toast } from "sonner";
 
+interface PolishContentItem {
+  text: string;
+  type: string;
+  extras?: {
+    signature: string;
+  };
+}
+
+interface PolishApiResponse {
+  polished_content: PolishContentItem[];
+}
+
 export function ContactSection() {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [isPolishing, setIsPolishing] = useState(false);
 
-  // Cleaned up handlePolish using your central API layer
   const handlePolish = async () => {
-    if (!message.trim()) return;
+    if (typeof message !== "string" || !message.trim()) return;
 
     setIsPolishing(true);
     try {
-      // aiService.polishMessage only needs the string, not the whole object
-      const data = await aiService.polishMessage(message);
+      // Cast the response to your interface
+      const data = (await aiService.polishMessage(message)) as unknown as PolishApiResponse;
 
-      // Update UI with the 'polished_content' key from your FastAPI response
-      if (data.polished_content) {
-        setMessage(data.polished_content);
+      // Now TypeScript knows exactly where 'text' is
+      const polishedText = data.polished_content?.[0]?.text;
+
+      if (polishedText) {
+        setMessage(polishedText);
         toast.success("Message polished!");
+      } else {
+        toast.error("Unexpected response format");
       }
     } catch (err) {
       console.error("Polish failed:", err);
-      toast.error("Could not reach AI service. Is FastAPI running on 8001?");
+      toast.error("Could not reach AI service.");
     } finally {
       setIsPolishing(false);
     }

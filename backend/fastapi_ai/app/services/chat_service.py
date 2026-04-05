@@ -18,64 +18,72 @@ llm = ChatGoogleGenerativeAI(
     google_api_key=os.getenv("GEMINI_API_KEY"),
     temperature=0.2
 )
-
-# Updated function signature to accept doc_id
-def ask_question(query: str, doc_id: str):
-    # 2. Connect to ChromaDB
+# 1. Update signature: doc_id: str = None makes it optional
+def ask_question(query: str, doc_id: str = None):
     db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embeddings)
 
-    # 🎯 NEW: Use similarity_search_with_score to get the 'Distance'
-    # This returns a list of (Document, Score) tuples
+    # 🎯 STEP 1: Fallback Logic
+    # If no doc_id is provided, we target the public landing page data
+    target_id = doc_id if doc_id else "website_guide"
+
+    # 2. Search ChromaDB with the filter
     docs_with_scores = db.similarity_search_with_score(
         query,
         k=4,
-        filter={'document_id': str(doc_id)}
+        filter={'document_id': str(target_id)}
     )
 
-    # 3. Calculate a real Trust Score based on Vector Distance
+    # 3. Calculate Trust Score (Distance based)
     if docs_with_scores:
-        # Chroma distance: 0.0 is perfect, 1.0+ is very different
         avg_distance = sum(score for doc, score in docs_with_scores) / len(docs_with_scores)
-        
-        # Logic: Convert distance to a 0-100 scale
-        # If distance is 0.2, trust is 80%. If distance is 0.7, trust is 30%.
-        real_trust = max(0, min(100, int((1.75 - avg_distance) * 100)))
+        # Scale: Closer to 0 is better. (1.5 is a safe threshold for Gemini embeddings)
+        real_trust = max(0, min(100, int((1.5 - avg_distance) * 100)))
     else:
         real_trust = 0
 
-    # 4. Create the Prompt & Chain (Keep your existing system_prompt)
-    system_prompt = (
-        "You are an expert Document Auditor. "
-        "Use the retrieved context to answer the question...\n\n"
-        "Context: {context}"
-    )
+    # 🎯 STEP 2: Persona Logic
+    # We change the "System Prompt" based on whether it's a public enquiry or a private audit
+    if target_id == "website_guide":
+        system_role = (
+            "You are the SentinelDocs AI Assistant. Your goal is to help visitors understand "
+            "our SaaS platform. Explain our features (Auditing, RAG, Magic Polish), "
+            "our registration process, and how developers can use our API.\n\n"
+            "Be professional, helpful, and concise. Use the following context to answer:\n"
+            "{context}"
+        )
+    else:
+        system_role = (
+            "You are an expert Document Auditor. Use the retrieved context to answer "
+            "the user's question about their specific document strictly. "
+            "If the answer isn't in the context, say you don't know.\n\n"
+            "Context: {context}"
+        )
     
     prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
+        ("system", system_role),
         ("human", "{input}"),
     ])
 
-    # 5. Execute using the documents we already found
+    # 4. Chain Execution
     question_answer_chain = create_stuff_documents_chain(llm, prompt)
     
-    # We pass the docs we manually retrieved above into the chain
     docs_only = [doc for doc, score in docs_with_scores]
     response = question_answer_chain.invoke({
         "input": query, 
         "context": docs_only
     })
 
-    # 6. Extract Metadata for UI
+    # 5. Extract Sources (Optional for the Chat Bubble, but good for the Dashboard)
     sources = []
     for doc, score in docs_with_scores:
         sources.append({
-            "page": doc.metadata.get("page", 1),
-            "paragraph": doc.page_content[:200] + "...",
-            "relevance": round((1 - score), 2) # Individual relevance for each chunk
+            "page": doc.metadata.get("page", "N/A"),
+            "content": doc.page_content[:150] + "...",
+            "score": round(score, 3)
         })
 
     return {
-        "answer": response, # Note: stuff_chain returns a string directly
+        "answer": response,
         "sources": sources,
         "real_trust": real_trust
     }

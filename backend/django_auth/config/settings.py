@@ -144,6 +144,8 @@ CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:8080"
 
 CORS_ALLOW_CREDENTIALS = True
 
+FASTAPI_URL = os.getenv("FASTAPI_URL", "http://localhost:8001")
+
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 

@@ -1,8 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { SidebarProvider } from "@/components/ui/sidebar";
-import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
-import { TopBar } from "@/components/dashboard/TopBar";
 import { TrustGauge } from "@/components/audit/TrustGauge";
 import { SourceVerification } from "@/components/audit/SourceVerification";
 import { ExecutionTrace } from "@/components/audit/ExecutionTrace";
@@ -13,6 +10,8 @@ import { motion } from "framer-motion";
 import { documentService } from "@/api/documentService";
 import { aiService } from "@/api/aiService";
 import { MarkdownRenderer } from "@/components/audit/MarkdownRenderer";
+import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Message {
   role: "user" | "ai";
@@ -31,6 +30,7 @@ interface UploadedDoc {
   score: number | null;
   url?: string; // Important for the PDF viewer!
 }
+
 interface AuditWorkspaceProps {
   onAuditComplete: (docId: string, score: number) => void;
 }
@@ -40,6 +40,7 @@ export default function AuditWorkspace({ onAuditComplete }: AuditWorkspaceProps)
   const [selectedDoc, setSelectedDoc] = useState<UploadedDoc | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -77,6 +78,7 @@ export default function AuditWorkspace({ onAuditComplete }: AuditWorkspaceProps)
     if (e) e.preventDefault();
     if (!input.trim() || !selectedDoc) return;
 
+    setLoading(true);
     // 1. Add User Message immediately for snappy UI
     const userMsg: Message = { role: "user", content: input };
     setMessages((prev) => [...prev, userMsg]);
@@ -109,117 +111,149 @@ export default function AuditWorkspace({ onAuditComplete }: AuditWorkspaceProps)
         ...prev,
         { role: "ai", content: "I'm having trouble reaching the audit engine. Please ensure FastAPI is running on port 8001." }
       ]);
+    } finally {
+      setLoading(false); // 🎯 Stop loading (always runs)
     }
   };
 
   return (
-    // <SidebarProvider>
-    //   <div className="min-h-screen flex w-full">
-    //     <DashboardSidebar />
-    //     <div className="flex-1 flex flex-col">
-    //       <TopBar breadcrumbs={[
-    //         { label: "Dashboard", href: "/dashboard" },
-    //         { label: "Files", href: "/dashboard/files" },
-    //         { label: selectedDoc?.name || "Loading..." }
-    //       ]} />
-          <div className="flex-1 flex min-h-0">
-            {/* Left Panel: PDF Viewer */}
-            <div className="hidden lg:flex w-1/2 border-r border-border flex-col bg-white">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium truncate max-w-[300px]">
-                    {selectedDoc?.name || "Loading..."}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex-1 w-full h-full bg-slate-100">
-                {selectedDoc?.url ? (
-                  <iframe
-                    src={`${selectedDoc.url}#toolbar=0&navpanes=0`}
-                    className="w-full h-full"
-                    title="PDF Preview"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
-                    <p>Fetching document...</p>
-                  </div>
-                )}
-              </div>
+    <div className="flex w-full h-[calc(100vh-64px)] overflow-hidden bg-slate-50/50 dark:bg-slate-950/20">
+      {/* Left Panel: PDF Viewer */}
+      <div className="hidden lg:flex w-1/2 flex-shrink-0 overflow-hidden border-r border-border/60 flex-col bg-white dark:bg-slate-900/40">
+        {/* Refined Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <FileText className="h-4 w-4 text-primary" />
             </div>
-
-            {/* Right Panel: Chat */}
-            <div className="flex-1 flex flex-col h-[calc(100vh-64px)] min-h-0 bg-background/50">
-              <div
-                ref={scrollRef}
-                className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth custom-scrollbar">
-                {messages.map((msg, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                    className={`${msg.role === "user" ? "ml-auto max-w-md" : "max-w-2xl"}`} // Increased max-width for tables
-                  >
-                    {msg.role === "user" ? (
-                      <div className="rounded-2xl rounded-br-md bg-primary px-4 py-3 text-sm text-primary-foreground shadow-sm">
-                        {msg.content}
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {/* AI ICON / BADGE */}
-                        <div className="flex items-center gap-2 px-1 mb-1">
-                          <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                          <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground/70">
-                            Sentinel Audit Analysis
-                          </span>
-                        </div>
-
-                        <div className="rounded-2xl rounded-bl-md border border-border bg-card/50 backdrop-blur-sm px-5 py-4 shadow-sm">
-                          {/* 🎯 THE MAGIC HAPPENS HERE */}
-                          <MarkdownRenderer content={msg.content} />
-                        </div>
-
-                        {/* GAUGES & METADATA */}
-                        <div className="flex flex-wrap items-start gap-4 pl-1">
-                          {msg.trustScore != null && <TrustGauge score={msg.trustScore} />}
-                        </div>
-
-                        <div className="space-y-2 pl-1">
-                          {msg.sources && <SourceVerification sources={msg.sources} />}
-                          {msg.latencyMs && msg.traceId && (
-                            <ExecutionTrace latencyMs={msg.latencyMs} traceId={msg.traceId} />
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </motion.div>
-                ))}
-                <div ref={bottomRef} />
-              </div >
-
-              <div className="border-t border-border p-4">
-                <form
-                  onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-                  className="flex gap-2"
-                >
-                  <Input
-                    placeholder="Ask about this document..."
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button type="submit" size="icon" className="h-10 w-10 shrink-0 active:scale-[0.95] transition-transform">
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </form>
-              </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold truncate max-w-[280px] text-foreground">
+                {selectedDoc?.name || "Loading Document..."}
+              </span>
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                Source Document
+              </span>
             </div>
           </div>
-    //     </div>
-    //   </div>
-    // </SidebarProvider>
+        </div>
+
+        {/* PDF Container with soft inner shadow */}
+        <div className="flex-1 w-full h-full relative group">
+          {selectedDoc?.url ? (
+            <iframe
+              src={`${selectedDoc.url}#toolbar=0&navpanes=0`}
+              className="w-full h-full grayscale-[0.1] hover:grayscale-0 transition-all duration-500"
+              title="PDF Preview"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full space-y-4">
+              <div className="relative">
+                <Loader2 className="h-10 w-10 animate-spin text-primary/40" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="h-2 w-2 bg-primary rounded-full animate-pulse" />
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground font-medium">Synchronizing Vectors...</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Right Panel: Chat Interface */}
+      <div className="w-1/2 flex flex-col flex-shrink-0 overflow-hidden bg-transparent">
+        {/* Chat Messages */}
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto px-6 py-8 space-y-8 scroll-smooth custom-scrollbar bg-dot-slate-200 dark:bg-dot-slate-800"
+        >
+          {messages.map((msg, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={cn(
+                "flex flex-col gap-3",
+                msg.role === "user" ? "items-end" : "items-start"
+              )}
+            >
+              {msg.role === "user" ? (
+                <div className="max-w-[85%] rounded-2xl rounded-br-none bg-primary px-5 py-3 text-sm text-primary-foreground shadow-lg shadow-primary/20 leading-relaxed">
+                  {msg.content}
+                </div>
+              ) : (
+                <div className="w-full max-w-[92%] space-y-4">
+                  {/* AI Brand Header */}
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="h-4 w-4 rounded bg-primary/20 flex items-center justify-center">
+                      <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                      Sentinel Audit Logic
+                    </span>
+                  </div>
+
+                  {/* Response Card */}
+                  <div className="rounded-2xl rounded-bl-none border border-border/80 bg-card/80 backdrop-blur-sm px-6 py-5 shadow-sm hover:shadow-md transition-shadow duration-300">
+                    <MarkdownRenderer content={msg.content} />
+                  </div>
+
+                  {/* Audit Tools & Meta (Trust/Sources) */}
+                  <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-700">
+                    {msg.trustScore != null && (
+                      <div className="bg-muted/30 rounded-xl p-4 border border-border/40 inline-block self-start">
+                        <TrustGauge score={msg.trustScore} />
+                      </div>
+                    )}
+
+                    <div className="space-y-3">
+                      {msg.sources && <SourceVerification sources={msg.sources} />}
+                      {msg.latencyMs && msg.traceId && (
+                        <div className="border-t border-border/30 pt-3">
+                          <ExecutionTrace latencyMs={msg.latencyMs} traceId={msg.traceId} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          ))}
+          <div ref={bottomRef} className="h-2" />
+        </div>
+
+        {/* Modern Floating Input Area */}
+        <div className="p-6 bg-gradient-to-t from-background via-background/90 to-transparent">
+          <form
+            onSubmit={(e) => { e.preventDefault(); handleSend(); }}
+            className="relative group max-w-3xl mx-auto flex items-center"
+          >
+            {/* 🎯 ADD -z-10 HERE to move the glow behind the input */}
+            <div className="absolute inset-0 -z-10 bg-primary/5 rounded-2xl blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity" />
+
+            <Input
+              placeholder="Audit this clause..."
+              value={input}
+              autoFocus // 🎯 Force focus on load
+              onChange={(e) => setInput(e.target.value)}
+              // 🎯 ADD z-10 and relative to ensure the input is clickable
+              className="relative z-10 flex-1 h-14 pl-6 pr-16 rounded-2xl border-border/80 bg-background shadow-xl focus-visible:ring-primary/20 focus-visible:border-primary transition-all text-base"
+            />
+
+            <Button
+              disabled={!input.trim() || loading}
+              type="submit"
+              size="icon"
+              // 🎯 ADD z-20 to ensure the button is above the input
+              className="absolute right-2.5 z-20 h-10 w-10 rounded-xl bg-primary shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          </form>
+          <p className="text-center text-[10px] text-muted-foreground mt-3 uppercase tracking-tighter opacity-50">
+            Encryption Active • AI Hallucination Guard Enabled
+          </p>
+        </div>
+      </div>
+    </div>
   );
-}
+};

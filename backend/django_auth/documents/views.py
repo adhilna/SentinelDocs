@@ -9,6 +9,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Sum
+from services.fastapi_client import FastApiService
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -19,7 +20,7 @@ def upload_document(request):
 
     uploaded_file = request.FILES['file']
 
-    # Create the document record
+    # 1. Immediate Database Entry
     doc = Document.objects.create(
         user=request.user,
         file=uploaded_file,
@@ -28,36 +29,23 @@ def upload_document(request):
         status='indexing'
     )
 
-    # Forward to FastAPI for AI Processing
-    fastapi_url = "http://localhost:8001/upload"
-    auth_header = request.headers.get('Authorization')
+    # 2. 🎯 Centralized Service Call
+    # We open the file stream directly from the saved doc
+    ai_data = FastApiService.process_document_audit(
+        file_obj=doc.file.open('rb'),
+        filename=doc.filename,
+        auth_token=request.headers.get('Authorization')
+    )
 
-    try:
-        # We open the file from the disk (media folder) to stream it
-        with doc.file.open('rb') as f:
-            files = {'file': (doc.filename, f, 'application/pdf')}
-            headers = {'Authorization': auth_header}
-
-            # Send to FastAPI
-            fastapi_res = requests.post(fastapi_url, files=files, headers=headers, timeout=60)
-
-        if fastapi_res.status_code == 200:
-            ai_data = fastapi_res.json()
-            # 3. Update Django with AI metadata (chunks, preview, etc.)
-            doc.status = 'completed'
-            doc.is_audited = True
-            doc.audit_report = ai_data
-            doc.save()
-        else:
-            # We still saved the file, but we flag that AI failed
-            doc.status = 'failed'
-            doc.is_audited = False
-            doc.save()
-
-    except Exception as e:
-        print(f"FastAPI Connection Error: {e}")
+    # 3. Update Status based on Service Result
+    if ai_data:
+        doc.status = 'completed'
+        doc.is_audited = True
+        doc.audit_report = ai_data
+    else:
         doc.status = 'failed'
-        doc.save()
+    
+    doc.save()
 
     return Response({
         "status": "success",
@@ -92,32 +80,32 @@ def get_documents(request):
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def delete_document(request, doc_id):
+    # 1. Securely fetch the document
+    doc = get_object_or_404(Document, id=doc_id, user=request.user)
+    file_path = doc.file.path
+
+    # 2. 🎯 Centralized Vector Cleanup
+    # We call the service but don't let a failure here stop the Django deletion
+    FastApiService.delete_vectors(
+        doc_id=doc_id, 
+        auth_token=request.headers.get('Authorization')
+    )
+
+    # 3. Local Cleanup (Database record & Physical PDF)
     try:
-        # 1. Find the doc in Django
-        doc = Document.objects.get(id=doc_id, user=request.user)
-        file_path = doc.file.path
-
-        # 2. 🔥 Tell FastAPI to delete the Vectors
-        fastapi_del_url = f"http://localhost:8001/api/vector-delete/{doc_id}"
-        auth_header = request.headers.get('Authorization')
-
-        try:
-            # We use a small timeout because deleting vectors is fast
-            requests.delete(fastapi_del_url, headers={'Authorization': auth_header}, timeout=5)
-        except Exception as e:
-            # We log this but don't stop the Django delete 
-            # (We don't want a FastAPI crash to break the whole app)
-            print(f"Warning: Vector cleanup failed for {doc_id}: {e}")
-
-        # 3. Delete from Django and remove physical file
         doc.delete()
         if os.path.exists(file_path):
             os.remove(file_path)
-
-        return Response({"status": "success", "message": "Document and Vectors wiped."}, status=200)
-
-    except Document.DoesNotExist:
-        return Response({"error": "File not found"}, status=404)
+            
+        return Response({
+            "status": "success",
+            "message": "Document and associated vectors have been removed."
+        }, status=200)
+        
+    except Exception as e:
+        return Response({
+            "error": f"Failed to complete local deletion: {str(e)}"
+        }, status=500)
 
 @api_view(['PATCH'])
 @permission_classes([IsAuthenticated])

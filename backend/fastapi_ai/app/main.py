@@ -154,3 +154,21 @@ async def polish(request: PolishRequest):
 
     polished_text = generate_polished_message(llm, request.message)
     return {"polished_content": polished_text}
+
+class EnquiryRequest(BaseModel):
+    question: str
+
+# 2. Create the PUBLIC endpoint (No Depends(get_current_user) here!)
+@app.post("/enquiry")
+async def public_enquiry(request: EnquiryRequest):
+    try:
+        # We pass doc_id=None to trigger the "website_guide" logic in your service
+        result = ask_question(request.question, doc_id=None)
+
+        return {
+            "answer": result["answer"],
+            "confidence": result.get("real_trust", 0)
+        }
+    except Exception as e:
+        print(f"Landing Page Bot Error: {e}")
+        return {"answer": "I'm having a little trouble connecting. Please try again in a moment!"}

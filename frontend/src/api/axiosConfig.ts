@@ -67,19 +67,17 @@ authApi.interceptors.response.use(
 
 aiApi.interceptors.request.use(
     (config) => {
-        // Use the exact same key name you used for Django
         const token = localStorage.getItem('accessToken');
+
+        // Only attach if token exists. 
+        // If it's a public endpoint (like /enquiry), the backend won't look for this header anyway.
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
-            console.log("Header attached to AI request:", config.headers.Authorization);
-        } else {
-            console.warn("No token found in localStorage for AI request!");
         }
+
         return config;
     },
-    (error) => {
-        return Promise.reject(error);
-    }
+    (error) => Promise.reject(error)
 );
 
 // Add this so AI requests also refresh the token if they fail

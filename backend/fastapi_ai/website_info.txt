@@ -1,0 +1,32 @@
+# WELCOME TO SENTINELDOCS
+SentinelDocs is an advanced AI-powered Document Auditing and SaaS platform designed for compliance, speed, and precision. We turn static documents into actionable intelligence.
+
+# HOW IT WORKS (THE CORE ENGINE)
+Our platform uses RAG (Retrieval-Augmented Generation). When you upload a document, we "vectorize" it into a private database (ChromaDB). This allows you to chat with your documents, ask complex compliance questions, and get answers with 100% source-backed accuracy.
+
+# REGISTRATION & ONBOARDING
+1. Sign Up: Users can create an account using their email. We use secure JWT (JSON Web Token) authentication.
+2. Dashboard: Once logged in, you get access to your private document library.
+3. Security: Every user's data is siloed. Your documents are tagged with a unique User ID and Document ID, ensuring no one else can ever access your data.
+
+# UPLOADING DOCUMENTS & CVs
+- Supported Files: We primarily handle PDFs and text-based documents.
+- CV Auditing: You can upload CVs or resumes to audit them against job descriptions or compliance standards. 
+- Processing: After uploading, our AI "Magic Polish" can help you rewrite sections of your document for better professional impact.
+
+# USING SENTINELDOCS AS AN API (SAAS FEATURES)
+SentinelDocs is built as a "Developer-First" platform.
+- API Endpoints: Developers can integrate our auditing engine into their own apps.
+- Base URL: http://localhost:8001 (for local development).
+- Key Endpoints: 
+    - /ask: The main RAG endpoint for chatting with uploaded docs.
+    - /polish: The AI text enhancement endpoint.
+    - /enquiry: The public help assistant (no token required).
+- Authentication: Standard API requests require a Bearer Token in the Authorization header, except for public landing page features.
+
+# PRICING & PLANS
+- Free Tier: Perfect for individuals testing the RAG capabilities.
+- Pro SaaS Tier: Includes higher rate limits, API access for developers, and advanced "Magic Polish" features for $20/month.
+
+# WHY CHOOSE US?
+Unlike standard AI, SentinelDocs doesn't "hallucinate" because it only answers based on the context of your specific files. It provides a "Trust Score" (Real Trust) for every answer based on vector distance metrics.
